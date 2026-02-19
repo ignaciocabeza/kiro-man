@@ -6,7 +6,7 @@ import { GAME_CONFIG } from '../config/gameConfig';
 import type { GridPosition } from '../types';
 import { GameStatus } from '../types';
 import { findPath } from '../utils/pathfinding';
-import { useGameState } from '../contexts/GameStateContext';
+import { useGameStateRef, useGameDispatch } from '../contexts/GameStateContext';
 
 interface KiroProps {
   spawnPosition: GridPosition;
@@ -25,7 +25,6 @@ const py = (y: number) => -(y - SVG_CY) * S;
 function createBodyGeometry(): THREE.ExtrudeGeometry {
   const body = new THREE.Shape();
 
-  // Ghost body outline from kiro.svg
   body.moveTo(px(3.80081), py(18.5661));
   body.bezierCurveTo(px(1.32306), py(24.0572), px(6.59904), py(25.434), px(10.4904), py(22.2205));
   body.bezierCurveTo(px(11.6339), py(25.8242), px(15.926), py(23.1361), px(17.4652), py(20.3445));
@@ -50,13 +49,11 @@ function createBodyGeometry(): THREE.ExtrudeGeometry {
 
 function createEyeShape(svgCenterX: number, svgCenterY: number): THREE.ShapeGeometry {
   const eye = new THREE.Shape();
-  // Approximate the SVG eye ovals as ellipses
   const ecx = px(svgCenterX);
   const ecy = py(svgCenterY);
-  const rx = 1.177 * S; // half-width from SVG data
-  const ry = 1.887 * S; // half-height from SVG data
+  const rx = 1.177 * S;
+  const ry = 1.887 * S;
 
-  // Draw ellipse
   const segments = 20;
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
@@ -76,8 +73,10 @@ const Kiro: React.FC<KiroProps> = React.memo(({
   enemyPosition,
   onPositionUpdate,
 }) => {
-  const gameState = useGameState();
+  const stateRef = useGameStateRef();
+  const dispatch = useGameDispatch();
   const groupRef = useRef<THREE.Group>(null);
+  const flamesGroupRef = useRef<THREE.Group>(null);
   const flame1Ref = useRef<THREE.Mesh>(null);
   const flame2Ref = useRef<THREE.Mesh>(null);
   const flame3Ref = useRef<THREE.Mesh>(null);
@@ -94,19 +93,30 @@ const Kiro: React.FC<KiroProps> = React.memo(({
   const leftEyeGeom = useMemo(() => createEyeShape(10.96, 8.55), []);
   const rightEyeGeom = useMemo(() => createEyeShape(15.03, 8.55), []);
 
+  // Dispose geometries on unmount
+  useEffect(() => {
+    return () => {
+      bodyGeom.dispose();
+      leftEyeGeom.dispose();
+      rightEyeGeom.dispose();
+    };
+  }, [bodyGeom, leftEyeGeom, rightEyeGeom]);
+
   useEffect(() => {
     movement.resetPosition(spawnPosition);
   }, [spawnPosition, mazeGrid]);
 
+  // Stable keyboard handler — reads abilities from ref, never re-attaches
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       keysPressed.current.add(e.code);
-      if (e.code === 'Digit1' && gameState.abilities.vibe) {
-        gameState.activateAbility('vibe');
-      } else if (e.code === 'Digit2' && gameState.abilities.tokenBurner) {
-        gameState.activateAbility('tokenBurner');
-      } else if (e.code === 'Digit3' && gameState.abilities.debug) {
-        gameState.activateAbility('debug');
+      const abilities = stateRef.current.abilities;
+      if (e.code === 'Digit1' && abilities.vibe) {
+        dispatch.activateAbility('vibe');
+      } else if (e.code === 'Digit2' && abilities.tokenBurner) {
+        dispatch.activateAbility('tokenBurner');
+      } else if (e.code === 'Digit3' && abilities.debug) {
+        dispatch.activateAbility('debug');
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -118,7 +128,7 @@ const Kiro: React.FC<KiroProps> = React.memo(({
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [gameState.abilities]);
+  }, [stateRef, dispatch]);
 
   const getDirection = useCallback((): GridPosition | null => {
     const keys = keysPressed.current;
@@ -130,18 +140,19 @@ const Kiro: React.FC<KiroProps> = React.memo(({
   }, []);
 
   useFrame((_, delta) => {
-    if (gameState.status !== GameStatus.PLAYING) return;
+    const gs = stateRef.current;
+    if (gs.status !== GameStatus.PLAYING) return;
 
     const speed =
-      gameState.activeAbility === 'tokenBurner'
+      gs.activeAbility === 'tokenBurner'
         ? GAME_CONFIG.PLAYER.BASE_SPEED * GAME_CONFIG.ABILITIES.TOKEN_BURNER.SPEED_MULTIPLIER
-        : gameState.activeAbility === 'vibe'
+        : gs.activeAbility === 'vibe'
         ? GAME_CONFIG.PLAYER.BASE_SPEED * GAME_CONFIG.ABILITIES.VIBE.SPEED_MULTIPLIER
         : GAME_CONFIG.PLAYER.BASE_SPEED;
 
     const currentPos = movement.getGridPosition();
 
-    if (gameState.activeAbility === 'vibe') {
+    if (gs.activeAbility === 'vibe') {
       vibeRecalcTimer.current += delta;
       if (vibeRecalcTimer.current > 0.5 || vibePathRef.current.length === 0) {
         vibePathRef.current = findPath(currentPos, enemyPosition, mazeGrid, false);
@@ -154,20 +165,17 @@ const Kiro: React.FC<KiroProps> = React.memo(({
         }
       }
     } else {
-      // Update last direction when a key is pressed
       const dir = getDirection();
       if (dir) {
         lastDirection.current = dir;
       }
 
-      // Continuous movement: keep moving in last direction until wall
       if (!movement.getIsMoving() && lastDirection.current) {
         const moved = movement.moveToGrid(
           currentPos.x + lastDirection.current.x,
           currentPos.y + lastDirection.current.y
         );
         if (!moved) {
-          // Hit a wall, stop continuous movement (wait for new input)
           lastDirection.current = null;
         }
       }
@@ -185,8 +193,12 @@ const Kiro: React.FC<KiroProps> = React.memo(({
       );
     }
 
-    // Animate fire rocket trail when token burner is active
-    if (gameState.activeAbility === 'tokenBurner') {
+    // Toggle flame visibility and animate (no mount/unmount)
+    const isTokenBurner = gs.activeAbility === 'tokenBurner';
+    if (flamesGroupRef.current) {
+      flamesGroupRef.current.visible = isTokenBurner;
+    }
+    if (isTokenBurner) {
       const t = Date.now() * 0.01;
       const flames = [flame1Ref, flame2Ref, flame3Ref, flame4Ref];
       flames.forEach((ref, i) => {
@@ -208,7 +220,6 @@ const Kiro: React.FC<KiroProps> = React.memo(({
 
   return (
     <group ref={groupRef} position={[worldPos[0], 0.55, worldPos[2]]}>
-      {/* Ghost body - extruded SVG shape laid flat */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} geometry={bodyGeom} castShadow>
         <meshStandardMaterial
           color="#ffffff"
@@ -218,62 +229,50 @@ const Kiro: React.FC<KiroProps> = React.memo(({
           opacity={0.92}
         />
       </mesh>
-      {/* Left eye - flat SVG eye */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.26, 0]} geometry={leftEyeGeom}>
         <meshBasicMaterial color="#1a1a3a" />
       </mesh>
-      {/* Right eye - flat SVG eye */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.26, 0]} geometry={rightEyeGeom}>
         <meshBasicMaterial color="#1a1a3a" />
       </mesh>
-      {/* Left eye white (3D sphere for visibility) */}
       <mesh position={[-0.1, 0.28, -0.08]}>
         <sphereGeometry args={[0.07, 10, 10]} />
         <meshStandardMaterial color="#ffffff" />
       </mesh>
-      {/* Left pupil */}
       <mesh position={[-0.1, 0.32, -0.08]}>
         <sphereGeometry args={[0.04, 8, 8]} />
         <meshBasicMaterial color="#111133" />
       </mesh>
-      {/* Right eye white (3D sphere for visibility) */}
       <mesh position={[0.1, 0.28, -0.08]}>
         <sphereGeometry args={[0.07, 10, 10]} />
         <meshStandardMaterial color="#ffffff" />
       </mesh>
-      {/* Right pupil */}
       <mesh position={[0.1, 0.32, -0.08]}>
         <sphereGeometry args={[0.04, 8, 8]} />
         <meshBasicMaterial color="#111133" />
       </mesh>
-      {/* Glow */}
       <pointLight position={[0, 0.3, 0]} intensity={0.8} distance={3} color="#88aaff" />
-      {/* Fire rocket trail when token burner is active */}
-      {gameState.activeAbility === 'tokenBurner' && (
-        <>
-          {/* Main central flame */}
-          <mesh ref={flame1Ref} position={[0, -0.2, 0]}>
-            <coneGeometry args={[0.18, 0.5, 8]} />
-            <meshBasicMaterial color="#ff6600" transparent opacity={0.9} />
-          </mesh>
-          {/* Inner hot core flame */}
-          <mesh ref={flame2Ref} position={[0, -0.15, 0]}>
-            <coneGeometry args={[0.12, 0.4, 8]} />
-            <meshBasicMaterial color="#ffcc00" transparent opacity={0.85} />
-          </mesh>
-          {/* Side flames */}
-          <mesh ref={flame3Ref} position={[0.15, -0.18, 0.15]}>
-            <coneGeometry args={[0.1, 0.35, 6]} />
-            <meshBasicMaterial color="#ff3300" transparent opacity={0.8} />
-          </mesh>
-          <mesh ref={flame4Ref} position={[-0.15, -0.18, -0.15]}>
-            <coneGeometry args={[0.1, 0.35, 6]} />
-            <meshBasicMaterial color="#ff4400" transparent opacity={0.8} />
-          </mesh>
-          <pointLight position={[0, -0.3, 0]} intensity={3} distance={4} color="#ff6600" />
-          <pointLight position={[0, 0.2, 0]} intensity={1.5} distance={3} color="#ffaa00" />
-        </>
-      )}
+      {/* Flames always mounted, visibility toggled via useFrame */}
+      <group ref={flamesGroupRef} visible={false}>
+        <mesh ref={flame1Ref} position={[0, -0.2, 0]}>
+          <coneGeometry args={[0.18, 0.5, 8]} />
+          <meshBasicMaterial color="#ff6600" transparent opacity={0.9} />
+        </mesh>
+        <mesh ref={flame2Ref} position={[0, -0.15, 0]}>
+          <coneGeometry args={[0.12, 0.4, 8]} />
+          <meshBasicMaterial color="#ffcc00" transparent opacity={0.85} />
+        </mesh>
+        <mesh ref={flame3Ref} position={[0.15, -0.18, 0.15]}>
+          <coneGeometry args={[0.1, 0.35, 6]} />
+          <meshBasicMaterial color="#ff3300" transparent opacity={0.8} />
+        </mesh>
+        <mesh ref={flame4Ref} position={[-0.15, -0.18, -0.15]}>
+          <coneGeometry args={[0.1, 0.35, 6]} />
+          <meshBasicMaterial color="#ff4400" transparent opacity={0.8} />
+        </mesh>
+        <pointLight position={[0, -0.3, 0]} intensity={3} distance={4} color="#ff6600" />
+        <pointLight position={[0, 0.2, 0]} intensity={1.5} distance={3} color="#ffaa00" />
+      </group>
     </group>
   );
 });

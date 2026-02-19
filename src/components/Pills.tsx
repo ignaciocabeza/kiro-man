@@ -44,6 +44,15 @@ const Pills: React.FC<PillsProps> = React.memo(({
     return pos;
   }, [mazeData]);
 
+  // O(1) position → index lookup map
+  const positionIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    positions.forEach((pos, i) => {
+      map.set(`${pos.x},${pos.y}`, i);
+    });
+    return map;
+  }, [positions]);
+
   // Reset eaten pills when maze changes
   useEffect(() => {
     eatenRef.current = new Set();
@@ -78,35 +87,31 @@ const Pills: React.FC<PillsProps> = React.memo(({
     }
   };
 
-  // Check if player ate a pill
+  // Check if player ate a pill — O(1) lookup
   useEffect(() => {
     const key = `${playerPosition.x},${playerPosition.y}`;
     if (eatenRef.current.has(key)) return;
 
-    const idx = positions.findIndex(
-      (p) => p.x === playerPosition.x && p.y === playerPosition.y
-    );
-    if (idx === -1) return;
+    const idx = positionIndex.get(key);
+    if (idx === undefined) return;
 
     eatenRef.current.add(key);
     onPillSaved();
     hidePill(idx);
-  }, [playerPosition, positions, onPillSaved]);
+  }, [playerPosition, positionIndex, onPillSaved]);
 
-  // Check if enemy ate a pill
+  // Check if enemy ate a pill — O(1) lookup
   useEffect(() => {
     const key = `${enemyPosition.x},${enemyPosition.y}`;
     if (eatenRef.current.has(key)) return;
 
-    const idx = positions.findIndex(
-      (p) => p.x === enemyPosition.x && p.y === enemyPosition.y
-    );
-    if (idx === -1) return;
+    const idx = positionIndex.get(key);
+    if (idx === undefined) return;
 
     eatenRef.current.add(key);
     onPillEatenByEnemy();
     hidePill(idx);
-  }, [enemyPosition, positions, onPillEatenByEnemy]);
+  }, [enemyPosition, positionIndex, onPillEatenByEnemy]);
 
   if (positions.length === 0) return null;
 

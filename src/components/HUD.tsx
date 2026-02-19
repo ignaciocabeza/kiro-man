@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useGameState } from '../contexts/GameStateContext';
 import { GAME_CONFIG } from '../config/gameConfig';
 
-const HUD: React.FC = () => {
+const HUD: React.FC = React.memo(() => {
   const gameState = useGameState();
   const levelConfig = GAME_CONFIG.LEVELS[gameState.currentLevel];
   const [abilityCountdown, setAbilityCountdown] = useState<number | null>(null);
@@ -89,7 +89,7 @@ const HUD: React.FC = () => {
       </div>
     </div>
   );
-};
+});
 
 const styles: Record<string, React.CSSProperties> = {
   container: {

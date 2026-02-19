@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GAME_CONFIG } from '../config/gameConfig';
 import type { GridPosition, AbilityType } from '../types';
 import { GameStatus } from '../types';
-import { useGameState } from '../contexts/GameStateContext';
+import { useGameStateRef } from '../contexts/GameStateContext';
 
 interface CollectibleProps {
   type: AbilityType;
@@ -25,7 +25,7 @@ const Collectible: React.FC<CollectibleProps> = React.memo(({
   onCollect,
   playerPosition,
 }) => {
-  const gameState = useGameState();
+  const stateRef = useGameStateRef();
   const groupRef = useRef<THREE.Group>(null);
   const collectedRef = useRef(false);
 
@@ -34,7 +34,7 @@ const Collectible: React.FC<CollectibleProps> = React.memo(({
   const worldZ = position.y * GAME_CONFIG.GRID_SIZE;
 
   useFrame((_, delta) => {
-    if (gameState.status !== GameStatus.PLAYING || collectedRef.current) return;
+    if (stateRef.current.status !== GameStatus.PLAYING || collectedRef.current) return;
     if (!groupRef.current) return;
 
     groupRef.current.position.y = 0.5 + Math.sin(Date.now() * 0.003) * 0.15;
@@ -51,21 +51,18 @@ const Collectible: React.FC<CollectibleProps> = React.memo(({
   return (
     <group ref={groupRef} position={[worldX, 0.5, worldZ]}>
       {type === 'vibe' && (
-        /* Wave/torus ring */
         <mesh castShadow>
           <torusGeometry args={[0.18, 0.06, 8, 16]} />
           <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={0.6} transparent opacity={0.9} />
         </mesh>
       )}
       {type === 'tokenBurner' && (
-        /* Flame/cone */
         <mesh castShadow>
           <coneGeometry args={[0.15, 0.35, 8]} />
           <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={0.6} transparent opacity={0.9} />
         </mesh>
       )}
       {type === 'debug' && (
-        /* Eye/diamond shape */
         <mesh castShadow>
           <icosahedronGeometry args={[0.2, 0]} />
           <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={0.6} transparent opacity={0.9} />

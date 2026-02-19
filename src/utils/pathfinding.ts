@@ -10,10 +10,67 @@ interface PathNode {
   parent: PathNode | null;
 }
 
+// --- Binary min-heap for O(log n) open-list operations ---
+class MinHeap {
+  private data: PathNode[] = [];
+
+  get size() { return this.data.length; }
+
+  push(node: PathNode) {
+    this.data.push(node);
+    this.bubbleUp(this.data.length - 1);
+  }
+
+  pop(): PathNode | undefined {
+    if (this.data.length === 0) return undefined;
+    const min = this.data[0];
+    const last = this.data.pop()!;
+    if (this.data.length > 0) {
+      this.data[0] = last;
+      this.sinkDown(0);
+    }
+    return min;
+  }
+
+  private bubbleUp(i: number) {
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (this.data[i].f >= this.data[parent].f) break;
+      [this.data[i], this.data[parent]] = [this.data[parent], this.data[i]];
+      i = parent;
+    }
+  }
+
+  private sinkDown(i: number) {
+    const n = this.data.length;
+    while (true) {
+      let min = i;
+      const l = 2 * i + 1;
+      const r = 2 * i + 2;
+      if (l < n && this.data[l].f < this.data[min].f) min = l;
+      if (r < n && this.data[r].f < this.data[min].f) min = r;
+      if (min === i) break;
+      [this.data[i], this.data[min]] = [this.data[min], this.data[i]];
+      i = min;
+    }
+  }
+}
+
+// --- LRU cache with bounded size ---
+const MAX_CACHE_SIZE = 500;
 const pathCache = new Map<string, GridPosition[]>();
 
 function getCacheKey(start: GridPosition, goal: GridPosition): string {
   return `${start.x},${start.y},${goal.x},${goal.y}`;
+}
+
+function addToCache(key: string, path: GridPosition[]) {
+  if (pathCache.size >= MAX_CACHE_SIZE) {
+    // Delete oldest entry (first key in Map iteration order)
+    const firstKey = pathCache.keys().next().value;
+    if (firstKey !== undefined) pathCache.delete(firstKey);
+  }
+  pathCache.set(key, path);
 }
 
 export function clearPathCache(): void {
@@ -31,30 +88,29 @@ export function findPath(
     return pathCache.get(cacheKey)!;
   }
 
-  const openList: PathNode[] = [];
+  const heap = new MinHeap();
   const closedSet = new Set<string>();
+  const gScores = new Map<string, number>();
 
+  const h = manhattanDistance(start, goal);
   const startNode: PathNode = {
     position: start,
     g: 0,
-    h: manhattanDistance(start, goal),
-    f: manhattanDistance(start, goal),
+    h,
+    f: h,
     parent: null,
   };
 
-  openList.push(startNode);
+  heap.push(startNode);
+  gScores.set(`${start.x},${start.y}`, 0);
 
-  while (openList.length > 0) {
-    // Find node with lowest f score
-    let lowestIdx = 0;
-    for (let i = 1; i < openList.length; i++) {
-      if (openList[i].f < openList[lowestIdx].f) {
-        lowestIdx = i;
-      }
-    }
-
-    const current = openList[lowestIdx];
+  while (heap.size > 0) {
+    const current = heap.pop()!;
     const currentKey = `${current.position.x},${current.position.y}`;
+
+    // Skip if already visited via a better path
+    if (closedSet.has(currentKey)) continue;
+    closedSet.add(currentKey);
 
     // Goal reached
     if (current.position.x === goal.x && current.position.y === goal.y) {
@@ -65,14 +121,10 @@ export function findPath(
         node = node.parent;
       }
       if (useCache) {
-        pathCache.set(cacheKey, path);
+        addToCache(cacheKey, path);
       }
       return path;
     }
-
-    // Move current to closed set
-    openList.splice(lowestIdx, 1);
-    closedSet.add(currentKey);
 
     // Check neighbors
     const neighbors = getValidNeighbors(current.position.x, current.position.y, mazeGrid);
@@ -81,28 +133,18 @@ export function findPath(
       if (closedSet.has(neighborKey)) continue;
 
       const g = current.g + 1;
-      const h = manhattanDistance(neighbor, goal);
-      const f = g + h;
+      const existingG = gScores.get(neighborKey);
+      if (existingG !== undefined && g >= existingG) continue;
 
-      const existingIdx = openList.findIndex(
-        (n) => n.position.x === neighbor.x && n.position.y === neighbor.y
-      );
-
-      if (existingIdx !== -1) {
-        if (g < openList[existingIdx].g) {
-          openList[existingIdx].g = g;
-          openList[existingIdx].f = f;
-          openList[existingIdx].parent = current;
-        }
-      } else {
-        openList.push({
-          position: neighbor,
-          g,
-          h,
-          f,
-          parent: current,
-        });
-      }
+      gScores.set(neighborKey, g);
+      const nh = manhattanDistance(neighbor, goal);
+      heap.push({
+        position: neighbor,
+        g,
+        h: nh,
+        f: g + nh,
+        parent: current,
+      });
     }
   }
 
@@ -116,8 +158,8 @@ export function findFurthestPoint(
   mazeGrid: number[][],
   radius: number = 10
 ): GridPosition {
-  let bestPos = from;
-  let bestDist = 0;
+  // Collect walkable candidates within radius, sorted by distance from awayFrom (descending)
+  const candidates: { x: number; y: number; dist: number }[] = [];
 
   for (let dy = -radius; dy <= radius; dy++) {
     for (let dx = -radius; dx <= radius; dx++) {
@@ -127,15 +169,21 @@ export function findFurthestPoint(
       if (mazeGrid[y][x] !== 0) continue;
 
       const dist = manhattanDistance({ x, y }, awayFrom);
-      if (dist > bestDist) {
-        const path = findPath(from, { x, y }, mazeGrid, false);
-        if (path.length > 0 && path.length < radius * 2) {
-          bestDist = dist;
-          bestPos = { x, y };
-        }
-      }
+      candidates.push({ x, y, dist });
     }
   }
 
-  return bestPos;
+  // Sort by distance descending — only verify top candidates with full A*
+  candidates.sort((a, b) => b.dist - a.dist);
+
+  const maxChecks = Math.min(5, candidates.length);
+  for (let i = 0; i < maxChecks; i++) {
+    const c = candidates[i];
+    const path = findPath(from, { x: c.x, y: c.y }, mazeGrid, false);
+    if (path.length > 0 && path.length < radius * 2) {
+      return { x: c.x, y: c.y };
+    }
+  }
+
+  return from;
 }

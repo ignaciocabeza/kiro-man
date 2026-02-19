@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { useGameState } from '../contexts/GameStateContext';
 import { GAME_CONFIG } from '../config/gameConfig';
@@ -75,6 +74,10 @@ const GameCanvas: React.FC = () => {
   } | null>(null);
   const spawnCounter = useRef(0);
   const debugLockedPathRef = useRef<GridPosition[]>([]);
+
+  // Ref for stable escape handler
+  const statusRef = useRef(gameState.status);
+  statusRef.current = gameState.status;
 
   const currentLevel = gameState.currentLevel;
   const mazeData = MAZE_LAYOUTS[currentLevel];
@@ -165,20 +168,20 @@ const GameCanvas: React.FC = () => {
     }
   }, [gameState.activeAbility, gameState.status]);
 
-  // Escape key for pause
+  // Escape key for pause — stable handler, reads status from ref
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
-        if (gameState.status === GameStatus.PLAYING) {
+        if (statusRef.current === GameStatus.PLAYING) {
           gameState.pauseGame();
-        } else if (gameState.status === GameStatus.PAUSED) {
+        } else if (statusRef.current === GameStatus.PAUSED) {
           gameState.resumeGame();
         }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [gameState.status]);
+  }, []);
 
   // Handle level transition
   useEffect(() => {
@@ -343,15 +346,6 @@ const GameCanvas: React.FC = () => {
           />
         ))}
 
-        <EffectComposer>
-          <Bloom
-            luminanceThreshold={0.4}
-            luminanceSmoothing={0.9}
-            intensity={0.8}
-            mipmapBlur
-            levels={3}
-          />
-        </EffectComposer>
       </Canvas>
     </div>
   );

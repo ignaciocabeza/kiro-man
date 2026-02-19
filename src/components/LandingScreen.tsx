@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useGameState } from '../contexts/GameStateContext';
 import { audioManager } from '../utils/audioManager';
 import { MusicType } from '../types';
@@ -10,6 +10,28 @@ import codexSvg from '../assets/codex.svg';
 import claudeSvg from '../assets/claude.svg';
 import vscodeSvg from '../assets/vscode.svg';
 
+const MD_FILES = [
+  'README.md', 'CONTRIBUTING.md', 'CHANGELOG.md', 'TODO.md',
+  'SECURITY.md', 'LICENSE.md', 'BUGS.md', 'HACKED.md',
+  'FEELINGS.md', 'REGRETS.md', 'VIBE_CHECK.md', 'OOPS.md',
+  'FIX_LATER.md', 'DEPLOY_FRIDAY.md', 'WORKS_ON_MY_MACHINE.md',
+  'DONT_TOUCH.md', 'HELP.md', 'WHY.md', 'CURSED.md',
+];
+
+interface FlyingFile {
+  id: number;
+  name: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  rotation: number;
+  rotationSpeed: number;
+  hue: number;
+}
+
+const GRAVITY = 980;
+
 const ENEMIES = [
   { name: 'Cursor', svg: cursorSvg, color: GAME_CONFIG.ENEMIES.cursor.color },
   { name: 'Antigravity', svg: antigravitySvg, color: GAME_CONFIG.ENEMIES.antigravity.color },
@@ -20,6 +42,10 @@ const ENEMIES = [
 
 const LandingScreen: React.FC = () => {
   const { startGame } = useGameState();
+  const [flyingFiles, setFlyingFiles] = useState<FlyingFile[]>([]);
+  const nextIdRef = useRef(0);
+  const animFrameRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(0);
 
   useEffect(() => {
     audioManager.playMusic(MusicType.MENU);
@@ -28,6 +54,64 @@ const LandingScreen: React.FC = () => {
     };
   }, []);
 
+  const spawnFile = useCallback((originX: number, originY: number) => {
+    const name = MD_FILES[Math.floor(Math.random() * MD_FILES.length)];
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.2;
+    const speed = 500 + Math.random() * 400;
+    const file: FlyingFile = {
+      id: nextIdRef.current++,
+      name,
+      x: originX,
+      y: originY,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      rotation: 0,
+      rotationSpeed: (Math.random() - 0.5) * 720,
+      hue: Math.floor(Math.random() * 360),
+    };
+    setFlyingFiles((prev) => [...prev, file]);
+  }, []);
+
+  useEffect(() => {
+    if (flyingFiles.length === 0) {
+      lastTimeRef.current = 0;
+      return;
+    }
+
+    const animate = (time: number) => {
+      if (!lastTimeRef.current) lastTimeRef.current = time;
+      const dt = Math.min((time - lastTimeRef.current) / 1000, 0.05);
+      lastTimeRef.current = time;
+
+      setFlyingFiles((prev) =>
+        prev
+          .map((f) => ({
+            ...f,
+            x: f.x + f.vx * dt,
+            y: f.y + f.vy * dt,
+            vy: f.vy + GRAVITY * dt,
+            rotation: f.rotation + f.rotationSpeed * dt,
+          }))
+          .filter((f) => f.y < window.innerHeight + 200)
+      );
+
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animFrameRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animFrameRef.current);
+  }, [flyingFiles.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleKiroClick = useCallback((e: React.MouseEvent<HTMLImageElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const count = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) {
+      spawnFile(cx + (Math.random() - 0.5) * 30, cy);
+    }
+  }, [spawnFile]);
+
   return (
     <div style={styles.container}>
       <div style={styles.content}>
@@ -35,7 +119,12 @@ const LandingScreen: React.FC = () => {
         <p style={styles.subtitle}>Hunt or Be Outpaced</p>
 
         <div style={styles.kiroContainer}>
-          <img src={kiroSvg} alt="Kiro" style={styles.kiro} />
+          <img
+            src={kiroSvg}
+            alt="Kiro"
+            style={styles.kiro}
+            onClick={handleKiroClick}
+          />
         </div>
 
         {/* Enemy parade */}
@@ -71,6 +160,29 @@ const LandingScreen: React.FC = () => {
           <p style={styles.controlText}>ESC - Pause</p>
         </div>
       </div>
+
+      {/* Flying .md files */}
+      {flyingFiles.map((f) => (
+        <div
+          key={f.id}
+          style={{
+            position: 'fixed',
+            left: f.x,
+            top: f.y,
+            transform: `translate(-50%, -50%) rotate(${f.rotation}deg)`,
+            pointerEvents: 'none',
+            zIndex: 200,
+            fontFamily: '"Courier New", monospace',
+            fontSize: '0.85rem',
+            fontWeight: 'bold',
+            color: `hsl(${f.hue}, 80%, 70%)`,
+            textShadow: `0 0 8px hsl(${f.hue}, 90%, 50%), 0 0 16px hsl(${f.hue}, 90%, 40%)`,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {f.name}
+        </div>
+      ))}
     </div>
   );
 };
@@ -113,6 +225,8 @@ const styles: Record<string, React.CSSProperties> = {
     height: '120px',
     filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.5))',
     animation: 'float 2s ease-in-out infinite',
+    cursor: 'pointer',
+    transition: 'transform 0.1s ease',
   },
   enemyRow: {
     display: 'flex',

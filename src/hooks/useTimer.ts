@@ -9,21 +9,26 @@ export function useTimer(
 ) {
   const timerRef = useRef(initialTime);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Store callbacks in refs so the interval doesn't need to be recreated when they change
+  const onTimeUpRef = useRef(onTimeUp);
+  const onTickRef = useRef(onTick);
+  onTimeUpRef.current = onTimeUp;
+  onTickRef.current = onTick;
 
   useEffect(() => {
     timerRef.current = initialTime;
-    onTick(initialTime);
+    onTickRef.current(initialTime);
   }, [initialTime]);
 
   useEffect(() => {
     if (status === GameStatus.PLAYING) {
       intervalRef.current = setInterval(() => {
         timerRef.current -= 1;
-        onTick(timerRef.current);
+        onTickRef.current(timerRef.current);
 
         if (timerRef.current <= 0) {
           if (intervalRef.current) clearInterval(intervalRef.current);
-          onTimeUp();
+          onTimeUpRef.current();
         }
       }, 1000);
     } else {

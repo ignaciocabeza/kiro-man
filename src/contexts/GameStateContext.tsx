@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react';
 import type { GameState, AbilityType } from '../types';
 import { GameStatus } from '../types';
 import { GAME_CONFIG } from '../config/gameConfig';
 
-interface GameStateContextType extends GameState {
+// --- Dispatch interface (all actions) ---
+export interface GameDispatch {
   startGame: () => void;
   pauseGame: () => void;
   resumeGame: () => void;
@@ -18,6 +19,9 @@ interface GameStateContextType extends GameState {
   addPillSaved: () => void;
   addPillEatenByEnemy: () => void;
 }
+
+// --- Combined type (backward compat) ---
+interface GameStateContextType extends GameState, GameDispatch {}
 
 const initialState: GameState = {
   status: GameStatus.MENU,
@@ -35,10 +39,16 @@ const initialState: GameState = {
   pillsEatenByEnemy: 0,
 };
 
+// --- Three contexts for granular subscriptions ---
 const GameStateContext = createContext<GameStateContextType | null>(null);
+const GameDispatchContext = createContext<GameDispatch | null>(null);
+const GameStateRefContext = createContext<React.MutableRefObject<GameState> | null>(null);
 
 export function GameStateProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<GameState>(initialState);
+  const stateRef = useRef<GameState>(state);
+  stateRef.current = state;
+
   const abilityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startGame = useCallback(() => {
@@ -143,8 +153,8 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     [deactivateAbility]
   );
 
-  const value: GameStateContextType = {
-    ...state,
+  // Stable dispatch object — never changes since all callbacks use updater form
+  const dispatch = useMemo<GameDispatch>(() => ({
     startGame,
     pauseGame,
     resumeGame,
@@ -158,15 +168,44 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     deactivateAbility,
     addPillSaved,
     addPillEatenByEnemy,
-  };
+  }), [startGame, pauseGame, resumeGame, restartGame, nextLevel, setGameOver, updateScore, updateTimer, collectAbility, activateAbility, deactivateAbility, addPillSaved, addPillEatenByEnemy]);
 
-  return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
+  const value: GameStateContextType = { ...state, ...dispatch };
+
+  return (
+    <GameStateRefContext.Provider value={stateRef}>
+      <GameDispatchContext.Provider value={dispatch}>
+        <GameStateContext.Provider value={value}>
+          {children}
+        </GameStateContext.Provider>
+      </GameDispatchContext.Provider>
+    </GameStateRefContext.Provider>
+  );
 }
 
+/** Backward-compatible hook — re-renders on any state change */
 export function useGameState(): GameStateContextType {
   const context = useContext(GameStateContext);
   if (!context) {
     throw new Error('useGameState must be used within a GameStateProvider');
+  }
+  return context;
+}
+
+/** Stable dispatch — never causes re-renders */
+export function useGameDispatch(): GameDispatch {
+  const context = useContext(GameDispatchContext);
+  if (!context) {
+    throw new Error('useGameDispatch must be used within a GameStateProvider');
+  }
+  return context;
+}
+
+/** Ref to current state — never causes re-renders. Read .current in useFrame. */
+export function useGameStateRef(): React.MutableRefObject<GameState> {
+  const context = useContext(GameStateRefContext);
+  if (!context) {
+    throw new Error('useGameStateRef must be used within a GameStateProvider');
   }
   return context;
 }

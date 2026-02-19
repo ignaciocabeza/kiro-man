@@ -9,7 +9,7 @@ import type { AIState } from '../utils/enemyAI';
 import { getNextMove, createInitialAIState } from '../utils/enemyAI';
 import { findPath, findFurthestPoint } from '../utils/pathfinding';
 import { getEnemyGeometry } from '../utils/enemyShapes';
-import { useGameState } from '../contexts/GameStateContext';
+import { useGameStateRef } from '../contexts/GameStateContext';
 
 interface EnemyProps {
   type: EnemyType;
@@ -37,7 +37,7 @@ const Enemy: React.FC<EnemyProps> = React.memo(({
   onPositionUpdate,
   debugLockedPathRef,
 }) => {
-  const gameState = useGameState();
+  const stateRef = useGameStateRef();
   const groupRef = useRef<THREE.Group>(null);
   const aiStateRef = useRef<AIState>(createInitialAIState(type, mazeGrid));
   const moveTimerRef = useRef(0);
@@ -55,8 +55,6 @@ const Enemy: React.FC<EnemyProps> = React.memo(({
   const wasDebugActive = useRef(false);
 
   const config = GAME_CONFIG.ENEMIES[type];
-  const levelConfig = GAME_CONFIG.LEVELS[gameState.currentLevel];
-  const effectiveSpeed = config.baseSpeed * levelConfig.enemySpeedMultiplier;
 
   // Pacman base shape (circle with mouth)
   const pacmanGeom = useMemo(() => {
@@ -75,8 +73,15 @@ const Enemy: React.FC<EnemyProps> = React.memo(({
     });
   }, []);
 
-  // SVG logo overlay geometry (smaller)
+  // SVG logo overlay geometry (cached by type in enemyShapes.ts)
   const logoGeom = useMemo(() => getEnemyGeometry(type), [type]);
+
+  // Dispose pacman geometry on unmount (logoGeom is shared/cached, don't dispose)
+  useEffect(() => {
+    return () => {
+      pacmanGeom.dispose();
+    };
+  }, [pacmanGeom]);
 
   useEffect(() => {
     playerPosRef.current = playerPosition;
@@ -88,10 +93,14 @@ const Enemy: React.FC<EnemyProps> = React.memo(({
   }, [spawnPosition, type, mazeGrid]);
 
   useFrame((_, delta) => {
-    if (gameState.status !== GameStatus.PLAYING) return;
+    const gs = stateRef.current;
+    if (gs.status !== GameStatus.PLAYING) return;
+
+    const levelConfig = GAME_CONFIG.LEVELS[gs.currentLevel];
+    const effectiveSpeed = config.baseSpeed * levelConfig.enemySpeedMultiplier;
 
     // Debug ability: lock enemy to a fixed path
-    const isDebugActive = gameState.activeAbility === 'debug';
+    const isDebugActive = gs.activeAbility === 'debug';
 
     if (isDebugActive && !wasDebugActive.current) {
       const currentPos = movement.getGridPosition();

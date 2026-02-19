@@ -36,7 +36,6 @@ function createRoundedBoxGeometry(width: number, height: number, depth: number, 
     curveSegments: 3,
   });
 
-  // Rotate so extrusion goes along +Y and center vertically
   geo.rotateX(-Math.PI / 2);
   geo.translate(0, -height / 2, 0);
 
@@ -45,7 +44,6 @@ function createRoundedBoxGeometry(width: number, height: number, depth: number, 
 
 const Maze: React.FC<MazeProps> = React.memo(({ mazeData }) => {
   const wallMeshRef = useRef<THREE.InstancedMesh>(null);
-  const glowMeshRef = useRef<THREE.InstancedMesh>(null);
 
   // Rounded wall geometry (created once)
   const wallGeometry = useMemo(() => {
@@ -83,40 +81,24 @@ const Maze: React.FC<MazeProps> = React.memo(({ mazeData }) => {
         const wx = x * g;
         const wz = y * g;
 
-        // North (y-1)
         if (isPath(mazeData.grid, x, y - 1, mazeData.width, mazeData.height)) {
-          edges.push({
-            start: [wx - half, topY, wz - half],
-            end: [wx + half, topY, wz - half],
-          });
+          edges.push({ start: [wx - half, topY, wz - half], end: [wx + half, topY, wz - half] });
         }
-        // South (y+1)
         if (isPath(mazeData.grid, x, y + 1, mazeData.width, mazeData.height)) {
-          edges.push({
-            start: [wx - half, topY, wz + half],
-            end: [wx + half, topY, wz + half],
-          });
+          edges.push({ start: [wx - half, topY, wz + half], end: [wx + half, topY, wz + half] });
         }
-        // West (x-1)
         if (isPath(mazeData.grid, x - 1, y, mazeData.width, mazeData.height)) {
-          edges.push({
-            start: [wx - half, topY, wz - half],
-            end: [wx - half, topY, wz + half],
-          });
+          edges.push({ start: [wx - half, topY, wz - half], end: [wx - half, topY, wz + half] });
         }
-        // East (x+1)
         if (isPath(mazeData.grid, x + 1, y, mazeData.width, mazeData.height)) {
-          edges.push({
-            start: [wx + half, topY, wz - half],
-            end: [wx + half, topY, wz + half],
-          });
+          edges.push({ start: [wx + half, topY, wz - half], end: [wx + half, topY, wz + half] });
         }
       }
     }
     return edges;
   }, [mazeData]);
 
-  // Batched neon edge lines into a single geometry (1 draw call instead of N)
+  // Batched neon edge lines into a single geometry
   const edgeLinesGeometry = useMemo(() => {
     const points: THREE.Vector3[] = [];
     for (const edge of neonEdges) {
@@ -124,30 +106,6 @@ const Maze: React.FC<MazeProps> = React.memo(({ mazeData }) => {
       points.push(new THREE.Vector3(edge.end[0], edge.end[1], edge.end[2]));
     }
     return new THREE.BufferGeometry().setFromPoints(points);
-  }, [neonEdges]);
-
-  // Pre-compute glow plane transforms for instancing
-  const glowTransforms = useMemo(() => {
-    const euler = new THREE.Euler();
-    const quat = new THREE.Quaternion();
-    const scale = new THREE.Vector3(1, 1, 1);
-    const pos = new THREE.Vector3();
-
-    return neonEdges.map((edge) => {
-      const dx = edge.end[0] - edge.start[0];
-      const dz = edge.end[2] - edge.start[2];
-      const cx = (edge.start[0] + edge.end[0]) / 2;
-      const cz = (edge.start[2] + edge.end[2]) / 2;
-      const angle = Math.atan2(dx, dz);
-
-      pos.set(cx, 1.02, cz);
-      euler.set(-Math.PI / 2, 0, angle);
-      quat.setFromEuler(euler);
-
-      const matrix = new THREE.Matrix4();
-      matrix.compose(pos, quat, scale);
-      return matrix;
-    });
   }, [neonEdges]);
 
   // Set wall instance matrices
@@ -163,18 +121,6 @@ const Maze: React.FC<MazeProps> = React.memo(({ mazeData }) => {
 
     mesh.instanceMatrix.needsUpdate = true;
   }, [wallPositions]);
-
-  // Set glow plane instance matrices
-  useEffect(() => {
-    if (!glowMeshRef.current || glowTransforms.length === 0) return;
-    const mesh = glowMeshRef.current;
-
-    glowTransforms.forEach((matrix, i) => {
-      mesh.setMatrixAt(i, matrix);
-    });
-
-    mesh.instanceMatrix.needsUpdate = true;
-  }, [glowTransforms]);
 
   const g = GAME_CONFIG.GRID_SIZE;
 
@@ -194,39 +140,20 @@ const Maze: React.FC<MazeProps> = React.memo(({ mazeData }) => {
         <meshStandardMaterial color="#050510" />
       </mesh>
 
-      {/* Walls (instanced) - rounded corners with subtle emissive */}
+      {/* Walls (instanced) - rounded corners, no emissive/glow */}
       <instancedMesh
         ref={wallMeshRef}
         args={[wallGeometry, undefined, wallPositions.length]}
         castShadow
         receiveShadow
       >
-        <meshStandardMaterial color="#0d1030" emissive="#0a1a60" emissiveIntensity={0.8} toneMapped={false} />
+        <meshStandardMaterial color="#0d1030" emissive="#0a1545" emissiveIntensity={0.3} />
       </instancedMesh>
 
       {/* Neon edge lines - single batched draw call */}
       <lineSegments geometry={edgeLinesGeometry}>
-        <lineBasicMaterial color="#00ccff" toneMapped={false} />
+        <lineBasicMaterial color="#00ccff" />
       </lineSegments>
-
-      {/* Neon glow planes - instanced (single draw call) */}
-      {neonEdges.length > 0 && (
-        <instancedMesh
-          ref={glowMeshRef}
-          args={[undefined, undefined, neonEdges.length]}
-        >
-          <planeGeometry args={[0.12, g]} />
-          <meshStandardMaterial
-            color="#00ccff"
-            emissive="#00ccff"
-            emissiveIntensity={1.5}
-            transparent
-            opacity={0.5}
-            toneMapped={false}
-            side={THREE.DoubleSide}
-          />
-        </instancedMesh>
-      )}
     </group>
   );
 });

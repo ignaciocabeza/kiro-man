@@ -116,6 +116,22 @@ A: That's what vibing looks like. If you can see clearly, you're not vibing hard
 **Q: I ate all 5 AI assistants. Now what?**
 A: Touch grass. Or play again. We don't judge.
 
+## The Bill (Token Usage)
+
+This game was built entirely by AI assistants (ironic, given what happens to them in-game). Here's how many tokens were burned in the process:
+
+| # | Session    | Date       | Duration | Turns | API Calls | Input   | Output | Cache Read | Cache Write | Total  | Est. Cost |
+|---|------------|------------|----------|-------|-----------|---------|--------|------------|-------------|--------|-----------|
+| 1 | `12bff19b` | 2026-02-19 |      24m |    45 |        70 |     128 |    668 |       2.7M |      117.8K |   2.8M |     $6.27 |
+| 2 | `17eac573` | 2026-02-19 |      37m |    89 |       135 |   24.0K |   1.5K |      11.3M |      404.6K |  11.7M |    $25.02 |
+| 3 | `95a3a693` | 2026-02-19 |  10h 32m |   416 |       665 |   42.8K |   5.8K |      62.6M |        3.0M |  65.6M |   $150.96 |
+| 4 | `aec768bb` | 2026-02-19 |      14m |    51 |        77 |    8.8K |    770 |       3.6M |      153.5K |   3.8M |     $8.50 |
+|   | **TOTAL**  |            |  11h 49m | **601** |   **947** | **75.7K** | **8.8K** | **80.2M** | **3.7M** | **83.9M** | **$190.75** |
+
+> **83.9 million tokens** and **~$191** to teach a ghost how to eat AI assistants. Worth it.
+
+To regenerate this table: `python3 scripts/token-usage.py`
+
 ---
 
 *Built with love, Three.js, and a complete disregard for the AI assistant ecosystem.*
