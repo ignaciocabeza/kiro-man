@@ -122,13 +122,13 @@ This game was built entirely by AI assistants (ironic, given what happens to the
 
 | # | Session    | Date       | Duration | Turns | API Calls | Input   | Output | Cache Read | Cache Write | Total  | Est. Cost |
 |---|------------|------------|----------|-------|-----------|---------|--------|------------|-------------|--------|-----------|
-| 1 | `12bff19b` | 2026-02-19 |      24m |    45 |        70 |     128 |    668 |       2.7M |      117.8K |   2.8M |     $6.27 |
-| 2 | `17eac573` | 2026-02-19 |      37m |    89 |       135 |   24.0K |   1.5K |      11.3M |      404.6K |  11.7M |    $25.02 |
+| 1 | `12bff19b` | 2026-02-19 |      32m |    62 |        87 |     157 |    969 |       4.1M |      146.7K |   4.2M |     $8.92 |
+| 2 | `17eac573` | 2026-02-19 |      37m |    89 |       136 |   24.0K |   1.5K |      11.5M |      404.7K |  11.9M |    $25.25 |
 | 3 | `95a3a693` | 2026-02-19 |  10h 32m |   416 |       665 |   42.8K |   5.8K |      62.6M |        3.0M |  65.6M |   $150.96 |
 | 4 | `aec768bb` | 2026-02-19 |      14m |    51 |        77 |    8.8K |    770 |       3.6M |      153.5K |   3.8M |     $8.50 |
-|   | **TOTAL**  |            |  11h 49m | **601** |   **947** | **75.7K** | **8.8K** | **80.2M** | **3.7M** | **83.9M** | **$190.75** |
+|   | **TOTAL**  |            |  11h 57m | **618** |   **965** | **75.7K** | **9.1K** | **81.7M** | **3.7M** | **85.5M** | **$193.64** |
 
-> **83.9 million tokens** and **~$191** to teach a ghost how to eat AI assistants. Worth it.
+> **85.5 million tokens** and **~$194** to teach a ghost how to eat AI assistants. Worth it.
 
 To regenerate this table: `python3 scripts/token-usage.py`
 
