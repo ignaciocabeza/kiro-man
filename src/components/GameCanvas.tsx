@@ -282,8 +282,6 @@ const GameCanvas: React.FC = () => {
         />
       )}
 
-      <AbilityOverlay />
-
       <Canvas shadows={{ type: THREE.PCFShadowMap }} orthographic camera={{ position: [centerX, 25, centerZ], zoom: 1, near: 0.1, far: 100 }}>
         <CameraSetup centerX={centerX} centerZ={centerZ} mazeWidth={mazeData.width} mazeHeight={mazeData.height} />
 
@@ -362,6 +360,8 @@ const GameCanvas: React.FC = () => {
         ))}
 
       </Canvas>
+
+      <AbilityOverlay />
     </div>
   );
 };

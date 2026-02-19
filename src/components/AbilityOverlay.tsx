@@ -186,15 +186,18 @@ export function getNextMove(
 const BREAKPOINT_LINES_LEFT = [7, 22, 37, 48, 59, 73];
 const BREAKPOINT_LINES_RIGHT = [5, 18, 30, 43, 55, 68];
 
+const IS_SMALL_SCREEN = typeof window !== 'undefined' && window.innerWidth < 768;
+
 const AbilityOverlay: React.FC = () => {
   const gameState = useGameState();
   const scrollRef = useRef(0);
   const [scrollOffset, setScrollOffset] = useState(0);
   const [activeLine, setActiveLine] = useState(0);
   const rafRef = useRef<number>(0);
+  const lastTickRef = useRef(0);
 
   useEffect(() => {
-    if (gameState.activeAbility !== 'debug') {
+    if (gameState.activeAbility !== 'debug' || IS_SMALL_SCREEN) {
       scrollRef.current = 0;
       setScrollOffset(0);
       setActiveLine(0);
@@ -202,11 +205,15 @@ const AbilityOverlay: React.FC = () => {
     }
 
     let running = true;
-    const animate = () => {
+    const animate = (now: number) => {
       if (!running) return;
-      scrollRef.current += 0.3;
-      setScrollOffset(scrollRef.current);
-      setActiveLine(Math.floor(scrollRef.current / 18) % 85);
+      // Throttle to ~10fps for scroll effect
+      if (now - lastTickRef.current > 100) {
+        scrollRef.current += 3;
+        setScrollOffset(scrollRef.current);
+        setActiveLine(Math.floor(scrollRef.current / 18) % 85);
+        lastTickRef.current = now;
+      }
       rafRef.current = requestAnimationFrame(animate);
     };
     rafRef.current = requestAnimationFrame(animate);
@@ -325,7 +332,39 @@ const AbilityOverlay: React.FC = () => {
     );
   }
 
-  // Debug ability: scrolling code panels
+  // Debug ability — lightweight on mobile, code panels on desktop
+  if (IS_SMALL_SCREEN) {
+    return (
+      <>
+        <style>{`
+          @keyframes debug-scanline {
+            0% { top: -4px; }
+            100% { top: 100%; }
+          }
+          @keyframes debug-pulse {
+            0%, 100% { box-shadow: inset 0 0 30px rgba(0,255,65,0.15); }
+            50% { box-shadow: inset 0 0 50px rgba(0,255,65,0.25); }
+          }
+        `}</style>
+        <div style={{
+          ...debugContainerStyle,
+          border: '2px solid rgba(0,255,65,0.4)',
+          animation: 'debug-pulse 2s ease-in-out infinite',
+        }}>
+          <div style={{
+            position: 'absolute',
+            left: 0,
+            width: '100%',
+            height: '4px',
+            background: 'linear-gradient(180deg, transparent, rgba(0,255,65,0.5), transparent)',
+            animation: 'debug-scanline 3s linear infinite',
+            pointerEvents: 'none',
+          }} />
+        </div>
+      </>
+    );
+  }
+
   const leftLines = CODE_PANEL_LEFT.split('\n');
   const rightLines = CODE_PANEL_RIGHT.split('\n');
 
@@ -500,13 +539,13 @@ const codePanelStyle: React.CSSProperties = {
   position: 'absolute',
   top: '40px',
   bottom: '70px',
-  width: '280px',
-  background: 'rgba(30, 30, 30, 0.92)',
+  width: 'min(180px, 25vw)',
+  background: 'rgba(30, 30, 30, 0.55)',
   fontFamily: '"Fira Code", "Cascadia Code", "Consolas", monospace',
-  fontSize: '10px',
-  lineHeight: '18px',
+  fontSize: '9px',
+  lineHeight: '16px',
   overflow: 'hidden',
-  boxShadow: '0 0 20px rgba(0,255,65,0.2)',
+  boxShadow: '0 0 15px rgba(0,255,65,0.15)',
 };
 
 const codePanelHeaderStyle: React.CSSProperties = {
