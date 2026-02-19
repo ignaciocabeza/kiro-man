@@ -181,7 +181,7 @@ function cursorBehavior(
 // Antigravity: Scatter mode - picks target areas and pathfinds toward them
 function antigravityBehavior(
   pos: GridPosition,
-  playerPos: GridPosition,
+  _playerPos: GridPosition,
   mazeGrid: number[][],
   state: AIState
 ): { nextPos: GridPosition; updatedState: AIState } {
