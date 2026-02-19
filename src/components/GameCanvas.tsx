@@ -19,17 +19,33 @@ import EnemyDeathEffect from './EnemyDeathEffect';
 import AbilityOverlay from './AbilityOverlay';
 import LevelTransition from './LevelTransition';
 
-function CameraSetup({ centerX, centerZ, zoom }: { centerX: number; centerZ: number; zoom: number }) {
-  const { camera } = useThree();
+function CameraSetup({ centerX, centerZ, mazeWidth, mazeHeight }: { centerX: number; centerZ: number; mazeWidth: number; mazeHeight: number }) {
+  const { camera, size } = useThree();
 
   useEffect(() => {
     if (camera instanceof THREE.OrthographicCamera) {
-      camera.position.set(centerX, 25, centerZ);
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+      // Reserve pixels for HUD bars; add extra bottom padding on touch for D-pad
+      const hudPadding = isTouchDevice ? 260 : 100;
+      const availableHeight = Math.max(size.height - hudPadding, 100);
+      const availableWidth = size.width;
+
+      // Add a small margin (1 grid unit each side) so the maze doesn't touch edges
+      const worldW = mazeWidth + 2;
+      const worldH = mazeHeight + 2;
+
+      // Compute zoom so the entire maze fits in the available viewport
+      const zoom = Math.min(availableWidth / worldW, availableHeight / worldH);
+
+      // Shift maze up on touch devices so D-pad doesn't overlap
+      const zOffset = isTouchDevice ? 4.5 : 0;
+      camera.position.set(centerX, 25, centerZ + zOffset);
       camera.zoom = zoom;
-      camera.lookAt(centerX, 0, centerZ);
+      camera.lookAt(centerX, 0, centerZ + zOffset);
       camera.updateProjectionMatrix();
     }
-  }, [camera, centerX, centerZ, zoom]);
+  }, [camera, centerX, centerZ, mazeWidth, mazeHeight, size]);
 
   return null;
 }
@@ -83,8 +99,7 @@ const GameCanvas: React.FC = () => {
   const mazeData = MAZE_LAYOUTS[currentLevel];
   const levelConfig = GAME_CONFIG.LEVELS[currentLevel];
 
-  // Camera zoom - reduce height factor to leave room for HUD bars (top + bottom ~100px)
-  const cameraZoom = Math.min(40 / mazeData.width, 33 / mazeData.height) * 17;
+  // Camera zoom is now computed dynamically inside CameraSetup based on viewport size
 
   // Timer
   useTimer(
@@ -269,8 +284,8 @@ const GameCanvas: React.FC = () => {
 
       <AbilityOverlay />
 
-      <Canvas shadows orthographic camera={{ position: [centerX, 25, centerZ], zoom: cameraZoom, near: 0.1, far: 100 }}>
-        <CameraSetup centerX={centerX} centerZ={centerZ} zoom={cameraZoom} />
+      <Canvas shadows={{ type: THREE.PCFShadowMap }} orthographic camera={{ position: [centerX, 25, centerZ], zoom: 1, near: 0.1, far: 100 }}>
+        <CameraSetup centerX={centerX} centerZ={centerZ} mazeWidth={mazeData.width} mazeHeight={mazeData.height} />
 
         <ambientLight intensity={0.5} />
         <directionalLight

@@ -24,7 +24,7 @@ const HUD: React.FC = React.memo(() => {
 
   return (
     <div style={styles.container}>
-      {/* Top bar - outside the maze area */}
+      {/* Top bar */}
       <div style={styles.topBar}>
         <div style={styles.score}>Score: {gameState.score}</div>
         <div style={styles.pillCounters}>
@@ -37,7 +37,7 @@ const HUD: React.FC = React.memo(() => {
         <div style={styles.timer}>Time: {gameState.timer}s</div>
       </div>
 
-      {/* Bottom bar - abilities, outside the maze area */}
+      {/* Bottom bar - abilities (tappable) */}
       <div style={styles.bottomBar}>
         <div style={styles.abilityContainer}>
           <div
@@ -46,6 +46,7 @@ const HUD: React.FC = React.memo(() => {
               ...(gameState.abilities.vibe ? styles.abilityAvailable : {}),
               ...(gameState.activeAbility === 'vibe' ? styles.abilityActive : {}),
             }}
+            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit1', bubbles: true }))}
           >
             <span style={styles.keyBadge}>[1]</span>
             <span style={styles.abilityIcon}>🌊</span>
@@ -61,6 +62,7 @@ const HUD: React.FC = React.memo(() => {
               ...(gameState.abilities.tokenBurner ? styles.abilityAvailable : {}),
               ...(gameState.activeAbility === 'tokenBurner' ? styles.abilityActive : {}),
             }}
+            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit2', bubbles: true }))}
           >
             <span style={styles.keyBadge}>[2]</span>
             <span style={styles.abilityIcon}>🔥</span>
@@ -76,6 +78,7 @@ const HUD: React.FC = React.memo(() => {
               ...(gameState.abilities.debug ? styles.abilityAvailable : {}),
               ...(gameState.activeAbility === 'debug' ? styles.abilityActive : {}),
             }}
+            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit3', bubbles: true }))}
           >
             <span style={styles.keyBadge}>[3]</span>
             <span style={styles.abilityIcon}>🔍</span>
@@ -109,19 +112,21 @@ const styles: Record<string, React.CSSProperties> = {
   topBar: {
     display: 'flex',
     justifyContent: 'space-between',
-    padding: '8px 20px',
+    padding: '6px 10px',
     background: 'rgba(0,0,0,0.85)',
     borderBottom: '1px solid rgba(255,255,255,0.1)',
     flexShrink: 0,
+    flexWrap: 'wrap',
+    gap: '4px 12px',
   },
   score: {
-    fontSize: '1rem',
+    fontSize: 'clamp(0.7rem, 2.5vw, 1rem)',
     textShadow: '0 0 10px rgba(233, 69, 96, 0.8)',
   },
   pillCounters: {
     display: 'flex',
-    gap: '12px',
-    fontSize: '0.85rem',
+    gap: '8px',
+    fontSize: 'clamp(0.6rem, 2vw, 0.85rem)',
   },
   pillSaved: {
     color: '#2ecc71',
@@ -132,35 +137,38 @@ const styles: Record<string, React.CSSProperties> = {
     textShadow: '0 0 8px rgba(231, 76, 60, 0.6)',
   },
   level: {
-    fontSize: '1rem',
+    fontSize: 'clamp(0.7rem, 2.5vw, 1rem)',
     textShadow: '0 0 10px rgba(255, 255, 255, 0.5)',
   },
   timer: {
-    fontSize: '1rem',
+    fontSize: 'clamp(0.7rem, 2.5vw, 1rem)',
     textShadow: '0 0 10px rgba(46, 204, 113, 0.8)',
   },
   bottomBar: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: '8px 15px',
+    padding: '6px 10px',
     background: 'rgba(0,0,0,0.85)',
     borderTop: '1px solid rgba(255,255,255,0.1)',
     flexShrink: 0,
+    pointerEvents: 'auto' as const,
   },
   abilityContainer: {
     display: 'flex',
-    gap: '15px',
+    gap: '8px',
   },
   ability: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: '4px 12px',
+    padding: '3px 8px',
     border: '1px solid rgba(255,255,255,0.2)',
     borderRadius: '6px',
     opacity: 0.4,
     transition: 'all 0.3s',
+    cursor: 'pointer',
+    pointerEvents: 'auto' as const,
   },
   abilityAvailable: {
     opacity: 1,

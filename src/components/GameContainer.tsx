@@ -9,6 +9,7 @@ import GameOverScreen from './GameOverScreen';
 import VictoryScreen from './VictoryScreen';
 import VibeEffect from './VibeEffect';
 import FpsCounter from './FpsCounter';
+import TouchControls from './TouchControls';
 
 const GameContainer: React.FC = () => {
   const { status } = useGameState();
@@ -25,6 +26,7 @@ const GameContainer: React.FC = () => {
           <HUD />
           <VibeEffect />
           <FpsCounter />
+          <TouchControls />
         </>
       );
 
@@ -35,6 +37,7 @@ const GameContainer: React.FC = () => {
           <HUD />
           <PauseMenu />
           <FpsCounter />
+          <TouchControls />
         </>
       );
 

@@ -117,11 +117,11 @@ const Pills: React.FC<PillsProps> = React.memo(({
 
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, positions.length]}>
-      <sphereGeometry args={[0.08, 6, 6]} />
+      <sphereGeometry args={[0.14, 8, 8]} />
       <meshStandardMaterial
         color="#ffee88"
         emissive="#ffcc00"
-        emissiveIntensity={0.6}
+        emissiveIntensity={0.8}
       />
     </instancedMesh>
   );
